@@ -1,58 +1,69 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import random
-import time
 from datetime import datetime
+import requests
+import numpy as np
 
-# ── PAGE CONFIG ───────────────────────
+# ── CONFIG ─────────────────────────────
 st.set_page_config(page_title="AI Sales Dashboard", layout="wide")
 
-# ── COLORS ───────────────────────────
-PRIMARY = "#6366f1"
-SECONDARY = "#22d3ee"
-SUCCESS = "#10b981"
-WARNING = "#f59e0b"
-DANGER = "#ef4444"
+PRODUCTS = {
+    "Shoes": 2500,
+    "T-Shirt": 1200,
+    "Watch": 3500,
+    "Bag": 1800,
+    "Headphones": 2200
+}
 
-COLORS = [PRIMARY, SECONDARY, SUCCESS, WARNING, "#ec4899"]
+CITIES = ["Chennai", "Bangalore", "Hyderabad", "Mumbai", "Delhi"]
 
-# ── DARK THEME FIX ───────────────────
-st.markdown("""
-<style>
-.stApp { background-color: #0f1117; }
+# ── WEATHER (OPEN-METEO, NO API KEY) ──
+@st.cache_data(ttl=600)
+def get_weather(city):
+    geo = {
+        "Chennai": (13.0827, 80.2707),
+        "Bangalore": (12.9716, 77.5946),
+        "Hyderabad": (17.3850, 78.4867),
+        "Mumbai": (19.0760, 72.8777),
+        "Delhi": (28.7041, 77.1025)
+    }
 
-h1, h2, h3, h4, h5, h6 { color: #f9fafb !important; }
-p, span, div, label { color: #e5e7eb !important; }
+    lat, lon = geo[city]
 
-section[data-testid="stSidebar"] { background-color: #0f1117; }
-section[data-testid="stSidebar"] * { color: #e5e7eb !important; }
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+    data = requests.get(url).json()
 
-[data-testid="metric-container"] label { color: #9ca3af !important; }
-[data-testid="metric-container"] div { color: #ffffff !important; }
-</style>
-""", unsafe_allow_html=True)
+    temp = data["current_weather"]["temperature"]
+    code = data["current_weather"]["weathercode"]
 
-# ── DATA ─────────────────────────────
-PRODUCTS = {"Shoes":2500,"T-Shirt":1200,"Watch":3500,"Bag":1800,"Headphones":2200}
-CITIES = ["Chennai","Bangalore","Hyderabad","Mumbai","Delhi"]
+    if code in [51, 53, 55, 61, 63, 65, 80, 81, 82]:
+        return "Rain"
+    elif temp > 35:
+        return "Heat"
+    else:
+        return "Normal"
 
+
+# ── SESSION STATE ─────────────────────
 if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(columns=["Product","Base","Price","City","Time"])
+    st.session_state.data = pd.DataFrame(columns=["Time", "Product", "Price", "City", "Weather"])
 
-def generate():
+
+# ── FAKE SALE GENERATOR ───────────────
+def generate_sale():
     product = random.choice(list(PRODUCTS.keys()))
-    base = PRODUCTS[product]
-    price = base + random.randint(-200,300)
+    price = PRODUCTS[product] + random.randint(-200, 300)
     city = random.choice(CITIES)
+    weather = get_weather(city)
 
     new = {
+        "Time": datetime.now(),
         "Product": product,
-        "Base": base,
         "Price": price,
         "City": city,
-        "Time": datetime.now()
+        "Weather": weather
     }
 
     st.session_state.data = pd.concat(
@@ -60,125 +71,90 @@ def generate():
         ignore_index=True
     )
 
-generate()
+
+generate_sale()
 df = st.session_state.data.copy()
 
-# ── CLEAN DATA ───────────────────────
-df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
-df["Base"] = pd.to_numeric(df["Base"], errors="coerce")
-df.dropna(inplace=True)
-df["Size"] = df["Price"].abs()
+# ── AUTO REFRESH (30 sec) ─────────────
+st.markdown("""
+<meta http-equiv="refresh" content="30">
+""", unsafe_allow_html=True)
 
-# ── METRICS ──────────────────────────
-total_revenue = int(df["Price"].sum())
+
+# ── HEADER ─────────────────────────────
+st.title("📊 AI-Powered Real-Time Sales Intelligence")
+st.success("LIVE SYSTEM | Refresh every 30 seconds")
+
+
+# ── KPIs ───────────────────────────────
+total_revenue = df["Price"].sum()
 total_orders = len(df)
-avg_order = int(df["Price"].mean()) if total_orders else 0
+avg_order = df["Price"].mean() if total_orders else 0
 
-top_product = df["Product"].value_counts().idxmax() if total_orders else "-"
-top_city = df.groupby("City")["Price"].sum().idxmax() if total_orders else "-"
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("💰 Revenue", f"₹{int(total_revenue):,}")
+c2.metric("📦 Orders", total_orders)
+c3.metric("📊 Avg Order", f"₹{int(avg_order):,}")
+c4.metric("🌦 Weather Mode", df["Weather"].mode()[0] if total_orders else "N/A")
 
-# ── HEADER ───────────────────────────
-st.markdown("<h1 style='color:#6366f1;'>📊 AI Powered Sales Dashboard</h1>", unsafe_allow_html=True)
-st.success("● LIVE")
-
-# ── KPI ──────────────────────────────
-k1,k2,k3,k4 = st.columns(4)
-k1.metric("Revenue", f"₹{total_revenue:,}")
-k2.metric("Orders", total_orders)
-k3.metric("Avg Order", f"₹{avg_order:,}")
-k4.metric("Top Product", top_product)
 
 st.markdown("---")
 
-# ── TREND ────────────────────────────
-df["Time"] = pd.to_datetime(df["Time"])
-trend = df.sort_values("Time")
+# ── CHARTS ────────────────────────────
+col1, col2 = st.columns(2)
 
-fig1 = px.line(trend, x="Time", y="Price", markers=True)
-fig1.update_traces(line=dict(color=PRIMARY, width=3))
-fig1.update_layout(
-    paper_bgcolor="#0f1117",
-    font=dict(color="#e5e7eb"),
-    title=dict(text="📈 Sales Trend", x=0.5,
-               font=dict(size=18, color="#22d3ee"))
-)
-st.plotly_chart(fig1, use_container_width=True)
+with col1:
+    fig1 = px.line(df, x="Time", y="Price", title="📈 Sales Trend", markers=True)
+    st.plotly_chart(fig1, use_container_width=True)
 
-# ── ROW 2 ────────────────────────────
-c1,c2 = st.columns(2)
-
-# ── BAR CHART (multi-color bars) ─────
-with c1:
-    fig2 = px.bar(
-        df,
-        x="City",
-        y="Price",
-        color="City"   # each city different color
-    )
-    fig2.update_layout(
-        paper_bgcolor="#0f1117",
-        font=dict(color="#e5e7eb"),
-        title=dict(text="🏙️ Revenue by City", x=0.5,
-                   font=dict(size=18, color="#6366f1"))
-    )
+with col2:
+    city_df = df.groupby("City")["Price"].sum().reset_index()
+    fig2 = px.bar(city_df, x="City", y="Price", color="City", title="🏙 Revenue by City")
     st.plotly_chart(fig2, use_container_width=True)
 
-with c2:
-    fig3 = px.pie(df, names="Product", hole=0.5, color_discrete_sequence=COLORS[:5])
-    fig3.update_layout(
-        paper_bgcolor="#0f1117",
-        font=dict(color="#e5e7eb"),
-        title=dict(text="🛍️ Product Distribution", x=0.5,
-                   font=dict(size=18, color="#22d3ee"))
-    )
+col3, col4 = st.columns(2)
+
+with col3:
+    weather_df = df.groupby("Weather")["Price"].sum().reset_index()
+    fig3 = px.bar(weather_df, x="Weather", y="Price", color="Weather",
+                  title="🌦 Weather Impact on Sales")
     st.plotly_chart(fig3, use_container_width=True)
 
-# ── ROW 3 ────────────────────────────
-c3,c4 = st.columns(2)
+with col4:
+    fig4 = px.pie(df, names="Product", title="🛍 Product Distribution")
+    st.plotly_chart(fig4, use_container_width=True)
 
-with c3:
-    fig5 = px.scatter(df, x="Price", y="City", size="Size",
-                      color="Product", size_max=40, color_discrete_sequence=COLORS)
-    fig5.update_layout(
-        paper_bgcolor="#0f1117",
-        font=dict(color="#e5e7eb"),
-        title=dict(text="💡 Sales Insights Map", x=0.5,
-                   font=dict(size=18, color="#10b981"))
-    )
-    st.plotly_chart(fig5, use_container_width=True)
 
-# ── HEATMAP ──────────────────────────
-pivot = df.pivot_table(index="City", columns="Product",
-                       values="Price", aggfunc="sum", fill_value=0)
+# ── ANOMALY DETECTION ──────────────────
+st.markdown("## 🚨 AI Insights Panel")
 
-fig6 = go.Figure(data=go.Heatmap(
-    z=pivot.values,
-    x=pivot.columns,
-    y=pivot.index,
-    colorscale=[[0, "#1f2937"], [0.5, SECONDARY], [1, PRIMARY]]
-))
-fig6.update_layout(
-    paper_bgcolor="#0f1117",
-    font=dict(color="#e5e7eb"),
-    title=dict(text="🔥 Performance Heatmap", x=0.5,
-               font=dict(size=18, color="#ef4444"))
-)
-st.plotly_chart(fig6, use_container_width=True)
+if len(df) > 5:
+    df["rolling_mean"] = df["Price"].rolling(5).mean()
+    df["rolling_std"] = df["Price"].rolling(5).std()
+    df["z_score"] = (df["Price"] - df["rolling_mean"]) / df["rolling_std"]
 
-# ── TABLE ────────────────────────────
-st.subheader("Recent Transactions")
+    anomalies = df[df["z_score"].abs() > 2]
 
-display_df = df.tail(10).copy()
-display_df["vs Base"] = display_df["Price"] - display_df["Base"]
+    if not anomalies.empty:
+        st.warning("⚠ Anomalies detected in sales spikes/drops!")
+        st.dataframe(anomalies[["Time", "City", "Product", "Price"]].tail(5))
+    else:
+        st.success("No unusual sales behavior detected.")
 
-display_df["vs Base"] = display_df["vs Base"].apply(
-    lambda x: f"+₹{int(x):,}" if x >= 0 else f"-₹{abs(int(x)):,}"
-)
+# ── AI INSIGHT LOGIC ───────────────────
+if len(df) > 10:
+    rain_sales = df[df["Weather"] == "Rain"]["Price"].mean()
+    normal_sales = df[df["Weather"] == "Normal"]["Price"].mean()
 
-display_df["Price"] = display_df["Price"].apply(lambda x: f"₹{int(x):,}")
+    if rain_sales < normal_sales:
+        st.info("📉 Insight: Rain is reducing sales performance in affected cities.")
+    else:
+        st.info("📈 Insight: Weather has positive or neutral impact on sales.")
 
-st.dataframe(display_df, use_container_width=True)
+# ── TABLE ─────────────────────────────
+st.markdown("## 📋 Latest Transactions")
 
-# ── AUTO REFRESH (1 MINUTE) ────────
-time.sleep(60)
-st.rerun()
+show = df.tail(10).copy()
+show["Price"] = show["Price"].apply(lambda x: f"₹{int(x):,}")
+
+st.dataframe(show, use_container_width=True)
