@@ -23,36 +23,14 @@ st.markdown("""
 <style>
 .stApp { background-color: #0f1117; }
 
-/* Titles */
 h1, h2, h3, h4, h5, h6 { color: #f9fafb !important; }
-
-/* Text */
 p, span, div, label { color: #e5e7eb !important; }
 
-/* Sidebar */
 section[data-testid="stSidebar"] { background-color: #0f1117; }
 section[data-testid="stSidebar"] * { color: #e5e7eb !important; }
 
-/* Sidebar headers */
-section[data-testid="stSidebar"] h1,
-section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 {
-    color: #facc15 !important;
-}
-
-/* Dropdown */
-div[data-baseweb="select"] * { color: #000000 !important; }
-
-/* Filter chips */
-span[data-baseweb="tag"] {
-    background-color: #6366f1 !important;
-    color: white !important;
-}
-
-/* Metrics */
 [data-testid="metric-container"] label { color: #9ca3af !important; }
 [data-testid="metric-container"] div { color: #ffffff !important; }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,39 +63,19 @@ def generate():
 generate()
 df = st.session_state.data.copy()
 
-# ── FILTERS ──────────────────────────
-st.sidebar.header("Filters")
-
-city_filter = st.sidebar.multiselect(
-    "City",
-    df["City"].unique(),
-    default=df["City"].unique()
-)
-
-product_filter = st.sidebar.multiselect(
-    "Product",
-    df["Product"].unique(),
-    default=df["Product"].unique()
-)
-
-filtered_df = df[
-    (df["City"].isin(city_filter)) &
-    (df["Product"].isin(product_filter))
-].copy()
-
 # ── CLEAN DATA ───────────────────────
-filtered_df["Price"] = pd.to_numeric(filtered_df["Price"], errors="coerce")
-filtered_df["Base"] = pd.to_numeric(filtered_df["Base"], errors="coerce")
-filtered_df.dropna(inplace=True)
-filtered_df["Size"] = filtered_df["Price"].abs()
+df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
+df["Base"] = pd.to_numeric(df["Base"], errors="coerce")
+df.dropna(inplace=True)
+df["Size"] = df["Price"].abs()
 
 # ── METRICS ──────────────────────────
-total_revenue = int(filtered_df["Price"].sum())
-total_orders = len(filtered_df)
-avg_order = int(filtered_df["Price"].mean()) if total_orders else 0
+total_revenue = int(df["Price"].sum())
+total_orders = len(df)
+avg_order = int(df["Price"].mean()) if total_orders else 0
 
-top_product = filtered_df["Product"].value_counts().idxmax() if total_orders else "-"
-top_city = filtered_df.groupby("City")["Price"].sum().idxmax() if total_orders else "-"
+top_product = df["Product"].value_counts().idxmax() if total_orders else "-"
+top_city = df.groupby("City")["Price"].sum().idxmax() if total_orders else "-"
 
 # ── HEADER ───────────────────────────
 st.markdown("<h1 style='color:#6366f1;'>📊 AI Powered Sales Dashboard</h1>", unsafe_allow_html=True)
@@ -133,39 +91,45 @@ k4.metric("Top Product", top_product)
 st.markdown("---")
 
 # ── TREND ────────────────────────────
-filtered_df["Time"] = pd.to_datetime(filtered_df["Time"])
-trend = filtered_df.sort_values("Time")
+df["Time"] = pd.to_datetime(df["Time"])
+trend = df.sort_values("Time")
 
 fig1 = px.line(trend, x="Time", y="Price", markers=True)
 fig1.update_traces(line=dict(color=PRIMARY, width=3))
 fig1.update_layout(
     paper_bgcolor="#0f1117",
     font=dict(color="#e5e7eb"),
-    title=dict(text="📈 Sales Trend", x=0.5, xanchor="center",
-               font=dict(size=18, color="#22d3ee", family="Arial Black"))
+    title=dict(text="📈 Sales Trend", x=0.5,
+               font=dict(size=18, color="#22d3ee"))
 )
 st.plotly_chart(fig1, use_container_width=True)
 
 # ── ROW 2 ────────────────────────────
 c1,c2 = st.columns(2)
 
+# ── BAR CHART (multi-color bars) ─────
 with c1:
-    fig2 = px.bar(filtered_df, x="City", y="Price", color="City", color_discrete_sequence=COLORS)
+    fig2 = px.bar(
+        df,
+        x="City",
+        y="Price",
+        color="City"   # each city different color
+    )
     fig2.update_layout(
         paper_bgcolor="#0f1117",
         font=dict(color="#e5e7eb"),
-        title=dict(text="🏙️ Revenue by City", x=0.5, xanchor="center",
-                   font=dict(size=18, color="#6366f1", family="Arial Black"))
+        title=dict(text="🏙️ Revenue by City", x=0.5,
+                   font=dict(size=18, color="#6366f1"))
     )
     st.plotly_chart(fig2, use_container_width=True)
 
 with c2:
-    fig3 = px.pie(filtered_df, names="Product", hole=0.5, color_discrete_sequence=COLORS[:5])
+    fig3 = px.pie(df, names="Product", hole=0.5, color_discrete_sequence=COLORS[:5])
     fig3.update_layout(
         paper_bgcolor="#0f1117",
         font=dict(color="#e5e7eb"),
-        title=dict(text="🛍️ Product Distribution", x=0.5, xanchor="center",
-                   font=dict(size=18, color="#22d3ee", family="Arial Black"))
+        title=dict(text="🛍️ Product Distribution", x=0.5,
+                   font=dict(size=18, color="#22d3ee"))
     )
     st.plotly_chart(fig3, use_container_width=True)
 
@@ -173,29 +137,19 @@ with c2:
 c3,c4 = st.columns(2)
 
 with c3:
-    fig4 = px.histogram(filtered_df, x="Price", nbins=10, color_discrete_sequence=[SECONDARY])
-    fig4.update_layout(
-        paper_bgcolor="#0f1117",
-        font=dict(color="#e5e7eb"),
-        title=dict(text="📊 Price Distribution", x=0.5, xanchor="center",
-                   font=dict(size=18, color="#f59e0b", family="Arial Black"))
-    )
-    st.plotly_chart(fig4, use_container_width=True)
-
-with c4:
-    fig5 = px.scatter(filtered_df, x="Price", y="City", size="Size",
+    fig5 = px.scatter(df, x="Price", y="City", size="Size",
                       color="Product", size_max=40, color_discrete_sequence=COLORS)
     fig5.update_layout(
         paper_bgcolor="#0f1117",
         font=dict(color="#e5e7eb"),
-        title=dict(text="💡 Sales Insights Map", x=0.5, xanchor="center",
-                   font=dict(size=18, color="#10b981", family="Arial Black"))
+        title=dict(text="💡 Sales Insights Map", x=0.5,
+                   font=dict(size=18, color="#10b981"))
     )
     st.plotly_chart(fig5, use_container_width=True)
 
 # ── HEATMAP ──────────────────────────
-pivot = filtered_df.pivot_table(index="City", columns="Product",
-                                values="Price", aggfunc="sum", fill_value=0)
+pivot = df.pivot_table(index="City", columns="Product",
+                       values="Price", aggfunc="sum", fill_value=0)
 
 fig6 = go.Figure(data=go.Heatmap(
     z=pivot.values,
@@ -206,17 +160,16 @@ fig6 = go.Figure(data=go.Heatmap(
 fig6.update_layout(
     paper_bgcolor="#0f1117",
     font=dict(color="#e5e7eb"),
-    title=dict(text="🔥 Performance Heatmap", x=0.5, xanchor="center",
-               font=dict(size=18, color="#ef4444", family="Arial Black"))
+    title=dict(text="🔥 Performance Heatmap", x=0.5,
+               font=dict(size=18, color="#ef4444"))
 )
 st.plotly_chart(fig6, use_container_width=True)
 
 # ── TABLE ────────────────────────────
 st.subheader("Recent Transactions")
 
-display_df = filtered_df.tail(10).copy()
+display_df = df.tail(10).copy()
 display_df["vs Base"] = display_df["Price"] - display_df["Base"]
-display_df["vs Base"] = pd.to_numeric(display_df["vs Base"], errors="coerce").fillna(0)
 
 display_df["vs Base"] = display_df["vs Base"].apply(
     lambda x: f"+₹{int(x):,}" if x >= 0 else f"-₹{abs(int(x)):,}"
@@ -226,6 +179,6 @@ display_df["Price"] = display_df["Price"].apply(lambda x: f"₹{int(x):,}")
 
 st.dataframe(display_df, use_container_width=True)
 
-# ── AUTO REFRESH ─────────────────────
-time.sleep(2)
+# ── AUTO REFRESH (1 MINUTE) ────────
+time.sleep(60)
 st.rerun()
