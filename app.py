@@ -133,7 +133,7 @@ if "data" not in st.session_state:
     st.session_state.order_counter = 0
 
 # ── Generate Sale ─────────────────────────────────────────────────────────────
-def generate():
+def generate_sale():
     product = random.choice(list(PRODUCTS.keys()))
     price = PRODUCTS[product] + random.randint(-200,300)
 
