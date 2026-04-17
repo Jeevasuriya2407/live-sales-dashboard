@@ -18,17 +18,19 @@ DANGER = "#ef4444"
 
 COLORS = [PRIMARY, SECONDARY, SUCCESS, WARNING, "#ec4899"]
 
-# ── DARK THEME ───────────────────────
+# ── DARK THEME FIX (TEXT VISIBILITY) ─
 st.markdown("""
 <style>
 .stApp { background-color: #0f1117; }
-h1,h2,h3,h4,h5,p { color:#e5e7eb; }
 
-.card {
-    background: linear-gradient(145deg,#1a1d27,#11131a);
-    padding: 20px;
-    border-radius: 15px;
+h1,h2,h3,h4,h5,h6,p,span,div,label {
+    color: #e5e7eb !important;
 }
+
+[data-testid="stSidebar"] * {
+    color: #e5e7eb !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,19 +59,19 @@ def generate():
     )
 
 generate()
-df = st.session_state.data
+df = st.session_state.data.copy()
 
 # ── FILTERS ──────────────────────────
 st.sidebar.header("Filters")
 
 city_filter = st.sidebar.multiselect(
-    "Select City",
+    "City",
     df["City"].unique(),
     default=df["City"].unique()
 )
 
 product_filter = st.sidebar.multiselect(
-    "Select Product",
+    "Product",
     df["Product"].unique(),
     default=df["Product"].unique()
 )
@@ -77,15 +79,20 @@ product_filter = st.sidebar.multiselect(
 filtered_df = df[
     (df["City"].isin(city_filter)) &
     (df["Product"].isin(product_filter))
-]
+].copy()
+
+# ── CLEAN DATA ───────────────────────
+filtered_df["Price"] = pd.to_numeric(filtered_df["Price"], errors="coerce")
+filtered_df.dropna(inplace=True)
+filtered_df["Size"] = filtered_df["Price"].abs()
 
 # ── METRICS ──────────────────────────
 total_revenue = int(filtered_df["Price"].sum())
 total_orders = len(filtered_df)
 avg_order = int(filtered_df["Price"].mean()) if total_orders else 0
 
-top_city = filtered_df.groupby("City")["Price"].sum().idxmax() if total_orders else "-"
 top_product = filtered_df["Product"].value_counts().idxmax() if total_orders else "-"
+top_city = filtered_df.groupby("City")["Price"].sum().idxmax() if total_orders else "-"
 
 # ── HEADER ───────────────────────────
 st.title("📊 AI Powered Sales Dashboard")
@@ -93,7 +100,6 @@ st.success("● LIVE")
 
 # ── KPI ──────────────────────────────
 k1,k2,k3,k4 = st.columns(4)
-
 k1.metric("Revenue", f"₹{total_revenue:,}")
 k2.metric("Orders", total_orders)
 k3.metric("Avg Order", f"₹{avg_order:,}")
@@ -101,13 +107,18 @@ k4.metric("Top Product", top_product)
 
 st.markdown("---")
 
-# ── TREND ────────────────────────────
+# ── TREND CHART ──────────────────────
 filtered_df["Time"] = pd.to_datetime(filtered_df["Time"])
 trend = filtered_df.sort_values("Time")
 
 fig1 = px.line(trend, x="Time", y="Price", markers=True)
 fig1.update_traces(line=dict(color=PRIMARY, width=3))
-fig1.update_layout(paper_bgcolor="#0f1117", font=dict(color="white"))
+fig1.update_layout(
+    paper_bgcolor="#0f1117",
+    plot_bgcolor="#0f1117",
+    font=dict(color="#e5e7eb"),
+    transition=dict(duration=800)
+)
 
 st.plotly_chart(fig1, use_container_width=True)
 
@@ -115,31 +126,64 @@ st.plotly_chart(fig1, use_container_width=True)
 c1,c2 = st.columns(2)
 
 with c1:
-    fig2 = px.bar(filtered_df, x="City", y="Price", color="City",
-                  color_discrete_sequence=COLORS)
-    fig2.update_layout(paper_bgcolor="#0f1117", font=dict(color="white"))
+    fig2 = px.bar(
+        filtered_df,
+        x="City",
+        y="Price",
+        color="City",
+        color_discrete_sequence=COLORS
+    )
+    fig2.update_layout(
+        paper_bgcolor="#0f1117",
+        font=dict(color="#e5e7eb"),
+        transition=dict(duration=800)
+    )
     st.plotly_chart(fig2, use_container_width=True)
 
 with c2:
-    fig3 = px.pie(filtered_df, names="Product", hole=0.5,
-                  color_discrete_sequence=COLORS[:5])
-    fig3.update_layout(paper_bgcolor="#0f1117", font=dict(color="white"))
+    fig3 = px.pie(
+        filtered_df,
+        names="Product",
+        hole=0.5,
+        color_discrete_sequence=COLORS[:5]
+    )
+    fig3.update_layout(
+        paper_bgcolor="#0f1117",
+        font=dict(color="#e5e7eb")
+    )
     st.plotly_chart(fig3, use_container_width=True)
 
 # ── ROW 3 ────────────────────────────
 c3,c4 = st.columns(2)
 
 with c3:
-    fig4 = px.histogram(filtered_df, x="Price", nbins=10,
-                        color_discrete_sequence=[SECONDARY])
-    fig4.update_layout(paper_bgcolor="#0f1117", font=dict(color="white"))
+    fig4 = px.histogram(
+        filtered_df,
+        x="Price",
+        nbins=10,
+        color_discrete_sequence=[SECONDARY]
+    )
+    fig4.update_layout(
+        paper_bgcolor="#0f1117",
+        font=dict(color="#e5e7eb")
+    )
     st.plotly_chart(fig4, use_container_width=True)
 
 with c4:
-    fig5 = px.scatter(filtered_df, x="Price", y="City",
-                      size="Price", color="Product",
-                      color_discrete_sequence=COLORS)
-    fig5.update_layout(paper_bgcolor="#0f1117", font=dict(color="white"))
+    fig5 = px.scatter(
+        filtered_df,
+        x="Price",
+        y="City",
+        size="Size",
+        color="Product",
+        size_max=40,
+        color_discrete_sequence=COLORS
+    )
+    fig5.update_layout(
+        paper_bgcolor="#0f1117",
+        font=dict(color="#e5e7eb"),
+        transition=dict(duration=800)
+    )
     st.plotly_chart(fig5, use_container_width=True)
 
 # ── HEATMAP ──────────────────────────
@@ -157,7 +201,10 @@ fig6 = go.Figure(data=go.Heatmap(
     y=pivot.index,
     colorscale=[[0, "#1f2937"], [0.5, SECONDARY], [1, PRIMARY]]
 ))
-fig6.update_layout(paper_bgcolor="#0f1117", font=dict(color="white"))
+fig6.update_layout(
+    paper_bgcolor="#0f1117",
+    font=dict(color="#e5e7eb")
+)
 
 st.plotly_chart(fig6, use_container_width=True)
 
@@ -165,19 +212,16 @@ st.plotly_chart(fig6, use_container_width=True)
 st.markdown("## 🤖 AI Insights")
 
 if total_orders > 0:
-    city_rev = filtered_df.groupby("City")["Price"].sum()
-    best_city = city_rev.idxmax()
-
     insight = f"""
-    • Top performing city: {best_city}  
-    • Best selling product: {top_product}  
-    • Average order value is ₹{avg_order}  
+    • Top city: {top_city}  
+    • Best product: {top_product}  
+    • Avg order value: ₹{avg_order}  
     """
 
     if avg_order > 2500:
-        insight += "• Customers are spending high 💰"
+        insight += "• Customers spending is HIGH 💰"
     else:
-        insight += "• Opportunity to increase pricing or upsell 📈"
+        insight += "• Opportunity to increase sales 📈"
 
     st.info(insight)
 
@@ -186,5 +230,5 @@ st.subheader("Recent Transactions")
 st.dataframe(filtered_df.tail(10), use_container_width=True)
 
 # ── REFRESH ──────────────────────────
-time.sleep(3)
+time.sleep(2)
 st.rerun()
