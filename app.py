@@ -133,22 +133,22 @@ if "data" not in st.session_state:
     st.session_state.order_counter = 0
 
 # ── Generate Sale ─────────────────────────────────────────────────────────────
-def generate_sale():
+def generate():
     product = random.choice(list(PRODUCTS.keys()))
-    base = PRODUCTS[product]
-    price = base + random.randint(-200, 300)
-    st.session_state.order_counter += 1
-    new_row = {
-        "#": st.session_state.order_counter,
+    price = PRODUCTS[product] + random.randint(-200,300)
+
+    city = random.choice(CITIES)  # ✅ FIXED
+
+    new = {
         "Product": product,
-        "Base": base,
         "Price": price,
-        "City": city := random.choice(CITIES),
-        "Time": datetime.now().strftime("%H:%M:%S"),
+        "City": city,
+        "Time": datetime.now()
     }
+
     st.session_state.data = pd.concat(
-        [st.session_state.data, pd.DataFrame([new_row])],
-        ignore_index=True,
+        [st.session_state.data, pd.DataFrame([new])],
+        ignore_index=True
     )
 
 generate_sale()
