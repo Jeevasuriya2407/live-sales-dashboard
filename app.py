@@ -18,21 +18,66 @@ DANGER = "#ef4444"
 
 COLORS = [PRIMARY, SECONDARY, SUCCESS, WARNING, "#ec4899"]
 
-# ── DARK THEME ───────────────────────
+# ── FULL DARK THEME FIX ──────────────
 st.markdown("""
 <style>
 .stApp { background-color: #0f1117; }
 
-h1,h2,h3,h4,h5,h6,p,span,div,label {
+/* Titles */
+h1, h2, h3, h4, h5, h6 {
+    color: #f9fafb !important;
+}
+
+/* General text */
+p, span, div, label {
     color: #e5e7eb !important;
 }
 
-[data-testid="stSidebar"] * {
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #0f1117;
+}
+
+section[data-testid="stSidebar"] * {
     color: #e5e7eb !important;
 }
 
+/* Sidebar headers */
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    color: #facc15 !important;
+}
+
+/* Dropdown text */
+div[data-baseweb="select"] * {
+    color: #000000 !important;
+}
+
+/* Selected filter chips */
+span[data-baseweb="tag"] {
+    background-color: #6366f1 !important;
+    color: white !important;
+}
+
+/* Widget labels
+*/
+label[data-testid="stWidgetLabel"] {
+    color: #cbd5f5 !important;
+    font-weight: 500;
+}
+
+/* Metrics */
+[data-testid="metric-container"] label {
+    color: #9ca3af !important;
+}
+[data-testid="metric-container"] div {
+    color: #ffffff !important;
+}
+
+/* Table */
 [data-testid="stDataFrame"] {
-    border-radius: 10px;
+    color: #e5e7eb !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -90,7 +135,6 @@ filtered_df = df[
 filtered_df["Price"] = pd.to_numeric(filtered_df["Price"], errors="coerce")
 filtered_df["Base"] = pd.to_numeric(filtered_df["Base"], errors="coerce")
 filtered_df.dropna(inplace=True)
-
 filtered_df["Size"] = filtered_df["Price"].abs()
 
 # ── METRICS ──────────────────────────
@@ -102,7 +146,7 @@ top_product = filtered_df["Product"].value_counts().idxmax() if total_orders els
 top_city = filtered_df.groupby("City")["Price"].sum().idxmax() if total_orders else "-"
 
 # ── HEADER ───────────────────────────
-st.title("📊 AI Powered Sales Dashboard")
+st.markdown("<h1 style='color:#6366f1;'>📊 AI Powered Sales Dashboard</h1>", unsafe_allow_html=True)
 st.success("● LIVE")
 
 # ── KPI ──────────────────────────────
@@ -120,26 +164,19 @@ trend = filtered_df.sort_values("Time")
 
 fig1 = px.line(trend, x="Time", y="Price", markers=True)
 fig1.update_traces(line=dict(color=PRIMARY, width=3))
-fig1.update_layout(
-    paper_bgcolor="#0f1117",
-    plot_bgcolor="#0f1117",
-    font=dict(color="#e5e7eb"),
-    transition=dict(duration=800)
-)
+fig1.update_layout(paper_bgcolor="#0f1117", font=dict(color="#e5e7eb"))
 st.plotly_chart(fig1, use_container_width=True)
 
 # ── ROW 2 ────────────────────────────
 c1,c2 = st.columns(2)
 
 with c1:
-    fig2 = px.bar(filtered_df, x="City", y="Price",
-                  color="City", color_discrete_sequence=COLORS)
+    fig2 = px.bar(filtered_df, x="City", y="Price", color="City", color_discrete_sequence=COLORS)
     fig2.update_layout(paper_bgcolor="#0f1117", font=dict(color="#e5e7eb"))
     st.plotly_chart(fig2, use_container_width=True)
 
 with c2:
-    fig3 = px.pie(filtered_df, names="Product", hole=0.5,
-                  color_discrete_sequence=COLORS[:5])
+    fig3 = px.pie(filtered_df, names="Product", hole=0.5, color_discrete_sequence=COLORS[:5])
     fig3.update_layout(paper_bgcolor="#0f1117", font=dict(color="#e5e7eb"))
     st.plotly_chart(fig3, use_container_width=True)
 
@@ -147,26 +184,19 @@ with c2:
 c3,c4 = st.columns(2)
 
 with c3:
-    fig4 = px.histogram(filtered_df, x="Price", nbins=10,
-                        color_discrete_sequence=[SECONDARY])
+    fig4 = px.histogram(filtered_df, x="Price", nbins=10, color_discrete_sequence=[SECONDARY])
     fig4.update_layout(paper_bgcolor="#0f1117", font=dict(color="#e5e7eb"))
     st.plotly_chart(fig4, use_container_width=True)
 
 with c4:
-    fig5 = px.scatter(filtered_df, x="Price", y="City",
-                      size="Size", color="Product",
+    fig5 = px.scatter(filtered_df, x="Price", y="City", size="Size", color="Product",
                       size_max=40, color_discrete_sequence=COLORS)
     fig5.update_layout(paper_bgcolor="#0f1117", font=dict(color="#e5e7eb"))
     st.plotly_chart(fig5, use_container_width=True)
 
 # ── HEATMAP ──────────────────────────
-pivot = filtered_df.pivot_table(
-    index="City",
-    columns="Product",
-    values="Price",
-    aggfunc="sum",
-    fill_value=0
-)
+pivot = filtered_df.pivot_table(index="City", columns="Product", values="Price",
+                                aggfunc="sum", fill_value=0)
 
 fig6 = go.Figure(data=go.Heatmap(
     z=pivot.values,
@@ -198,7 +228,6 @@ if total_orders > 0:
 st.subheader("Recent Transactions")
 
 display_df = filtered_df.tail(10).copy()
-
 display_df["vs Base"] = display_df["Price"] - display_df["Base"]
 display_df["vs Base"] = pd.to_numeric(display_df["vs Base"], errors="coerce")
 display_df["vs Base"].fillna(0, inplace=True)
@@ -211,6 +240,6 @@ display_df["Price"] = display_df["Price"].apply(lambda x: f"₹{int(x):,}")
 
 st.dataframe(display_df, use_container_width=True)
 
-# ── REFRESH ──────────────────────────
+# ── AUTO REFRESH ─────────────────────
 time.sleep(2)
 st.rerun()
